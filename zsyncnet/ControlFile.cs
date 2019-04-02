@@ -2,7 +2,7 @@
 
 namespace zsyncnet
 {
-    public class Class1
+    public class ControlFile
     {
     }
 }
