@@ -1,19 +1,20 @@
 using System;
 using System.IO;
 
-namespace zsyncnet.ControlFile
+namespace zsyncnet.Internal.ControlFile
 {
     public class Header
     {
-        private string Version { get; }
-        private string Filename { get; }
-        private DateTime MTime { get; }
-        private int Blocksize { get; }
-        private long Length { get; }
-        private int ChecksumBytes { get; }
-        private Boolean SequenceMatches { get; }
-        private string Url { get; }
-        private string Sha1 { get; }
+        public string Version { get; }
+        public string Filename { get; }
+        public DateTime MTime { get; }
+        public int Blocksize { get; }
+        public long Length { get; }
+        public int WeakChecksumLength { get; }
+        public int StrongChecksumLength { get; }
+        public int SequenceMatches { get; }
+        public string Url { get; }
+        public string Sha1 { get; }
 
         /// <summary>
         /// Creates new control file
@@ -23,21 +24,21 @@ namespace zsyncnet.ControlFile
         /// <param name="mTime"></param>
         /// <param name="blocksize"></param>
         /// <param name="length"></param>
-        /// <param name="checksumBytes"></param>
         /// <param name="sequenceMatches"></param>
         /// <param name="url"></param>
         /// <param name="sha1"></param>
-        public Header(string version, string filename, DateTime mTime, int blocksize, long length, int checksumBytes, bool sequenceMatches, string url, string sha1)
+        public Header(string version, string filename, DateTime mTime, int blocksize, long length, int sequenceMatches, int weakChecksumLength, int strongChecksumLength ,string url, string sha1)
         {
             Version = version;
             Filename = filename;
             MTime = mTime;
             Blocksize = blocksize;
             Length = length;
-            ChecksumBytes = checksumBytes;
             SequenceMatches = sequenceMatches;
             Url = url;
             Sha1 = sha1;
+            WeakChecksumLength = weakChecksumLength;
+            StrongChecksumLength = strongChecksumLength;
         }
 
         /// <summary>
