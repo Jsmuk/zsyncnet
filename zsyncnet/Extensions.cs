@@ -54,5 +54,25 @@ namespace zsyncnet
                 return memoryStream.ToArray();
             }
         }
+        
+        public static void ReadFully(this Stream stream, byte[] buffer)
+        {
+            int offset = 0;
+            int readBytes;
+            do
+            {
+                // If you are using Socket directly instead of a Stream:
+                //readBytes = socket.Receive(buffer, offset, buffer.Length - offset,
+                //                           SocketFlags.None);
+
+                readBytes = stream.Read(buffer, offset, buffer.Length - offset);
+                offset += readBytes;
+            } while (readBytes > 0 && offset < buffer.Length);
+
+            if (offset < buffer.Length)
+            {
+                throw new EndOfStreamException();
+            }
+        }
     }
 }
