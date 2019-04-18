@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 
 namespace zsyncnet.Internal.ControlFile
 {
@@ -42,12 +43,86 @@ namespace zsyncnet.Internal.ControlFile
         }
 
         /// <summary>
-        /// Reads a header of control file
+        /// Returns the expected number of blocks for this control file based on the file size and block size
         /// </summary>
-        /// <param name="input"></param>
-        public Header(Stream input)
+        /// <returns></returns>
+        public int GetNumberOfBlocks()
         {
-            
+            return (int)(Length + Blocksize - 1) / Blocksize;
+        }
+        /// <summary>
+        /// Reads the header of a control file
+        /// </summary>
+        /// <param name="input">byte[] representing header</param>
+        public Header(byte[] input)
+        {
+            string headerText = Encoding.ASCII.GetString(input);
+            string line;
+            using (var sr = new StringReader(headerText))
+            {
+                while (null != (line = sr.ReadLine()))
+                {
+                    var pair = SplitKeyValuePair(line);
+                    switch (pair.Key)
+                    {
+                        case "zsync":
+                            Version = pair.Value;
+                            break;
+                        case "Filename":
+                            Filename = pair.Value;
+                            break;
+                        case "MTime":
+                            MTime = DateTime.Parse(pair.Value);
+                            break;
+                        case "Blocksize":
+                            Blocksize = Convert.ToInt32(pair.Value);
+                            break;
+                        case "Length":
+                            Length = Convert.ToInt64(pair.Value);
+                            break;
+                        case "Hash-Lengths":
+                            var hashLengths = SplitHashLengths(pair.Value);
+                            SequenceMatches = hashLengths.SequenceMatches;
+                            WeakChecksumLength = hashLengths.WeakChecksumLength;
+                            StrongChecksumLength = hashLengths.StrongChecksumLength;
+                            break;
+                        case "URL":
+                            Url = pair.Value;
+                            break;
+                        case "SHA-1":
+                            Sha1 = pair.Value;
+                            break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Splits a zsync key:value pair into its constituent parts 
+        /// </summary>
+        /// <param name="str">String to split</param>
+        /// <returns>Key, Value</returns>
+        /// <exception cref="ArgumentException"></exception>
+        private (string Key, string Value) SplitKeyValuePair(string str)
+        {
+            var split = str.Split(':',2);
+            if (split.Length != 2)
+            {
+                throw new ArgumentException("str not a valid key:value pair");
+            }
+
+            return (split[0], split[1]);
+        }
+
+        private (int SequenceMatches, int WeakChecksumLength, int StrongChecksumLength) SplitHashLengths(string str)
+        {
+            var split = str.Split(',', 3);
+            if (split.Length != 3)
+            {
+                throw new ArgumentException("str not valid Hash-Lengths");
+            }
+
+            return (Convert.ToInt32(split[0]), Convert.ToInt32(split[1]), Convert.ToInt32(split[2]));
         }
     }
 }

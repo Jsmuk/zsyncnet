@@ -137,7 +137,7 @@ namespace zsyncnet
                     weakbytesMs.SetLength(weakLength);
 
                     var weakCheckSum = (ushort) ZsyncUtil.ComputeRsum(block);
-
+                  
                     weakbytesMs.Position = weakbytesMs.Length - weakLength;
                     
                     checkSumsMs.Write(MiscUtil.Conversion.EndianBitConverter.Big.GetBytes(weakCheckSum));
