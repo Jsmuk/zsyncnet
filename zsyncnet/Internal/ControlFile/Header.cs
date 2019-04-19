@@ -111,7 +111,7 @@ namespace zsyncnet.Internal.ControlFile
                 throw new ArgumentException("str not a valid key:value pair");
             }
 
-            return (split[0], split[1].TrimStart());
+            return (split[0], split[1].TrimStart().TrimEnd());
         }
 
         private (int SequenceMatches, int WeakChecksumLength, int StrongChecksumLength) SplitHashLengths(string str)

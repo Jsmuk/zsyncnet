@@ -15,14 +15,12 @@ namespace TestBench
             
             //ZsyncMake.Make(new FileInfo(@"D:\BSUTest\Input\@ace\ace_advanced_ballistics.dll"));            
             
-            ZsyncMake.Make(new FileInfo(@"D:\tmp\netboot.iso"));
-            
-            Console.WriteLine("DLL START");
-            var dll = Zsync.Sync(new Uri("http://u.beowulfso.com/synctest/@ace/ace_advanced_ballistics.dll.zsync"),new DirectoryInfo(@"D:\tmp\test") );
-            Console.WriteLine($"DLL Total Bytes: {dll}");
-            Console.WriteLine("ISO");
+            ZsyncMake.Make(new FileInfo(@"/home/james/tmp/test/web/ace_advanced_ballistics.dll"));
             //var iso = Zsync.Sync(new Uri("http://localhost:8000/netboot.iso.zsync"), new DirectoryInfo(@"D:\tmp\test"));
             //Console.WriteLine($"ISO Total Bytes: {dll}");
+
+            var dll = Zsync.Sync(new Uri("http://localhost:8000/ace_advanced_ballistics.dll.zsync"),
+                new DirectoryInfo(@"/home/james/tmp/test/client"));
 
         }
     }
