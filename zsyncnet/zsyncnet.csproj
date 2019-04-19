@@ -1,7 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>netcoreapp2.1</TargetFramework>
     </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="DotNet.MultiMap" Version="2.2.1" />
+      <PackageReference Include="Flurl" Version="2.8.1" />
+      <PackageReference Include="Flurl.Http" Version="2.4.1" />
+      <PackageReference Include="JonSkeet.MiscUtil" Version="0.2.0" />
+    </ItemGroup>
 
 </Project>
