@@ -74,15 +74,10 @@ namespace zsyncnet.Internal
 
         public void Patch()
         {
-            int bufferSize = 1024 * 1024;
-            // Copy existing file, up to new file length 
-            var bytesRead = -1;
-            var bytes = new byte[bufferSize];
-
-            while ((bytesRead = _existingStream.Read(bytes, 0, bufferSize)) > 0)
-            {
-                _tmpStream.Write(bytes, 0, bytesRead);
-            }
+           
+            _existingStream.CopyTo(_tmpStream);
+            
+            _existingStream.SetLength(_length);
 
             _existingStream.Close();
 
@@ -178,8 +173,10 @@ namespace zsyncnet.Internal
         private List<SyncOperation> CompareFiles()
         {
             List<SyncOperation> syncOps = new List<SyncOperation>();
+            int i = 0;
             foreach (var block in _remoteBlockSums)
             {
+                Console.WriteLine(i);
                 BlockSum found = null;
                 var status = Status.NotFound;
                 var localBlock = _localBlockSums.Find(x => x.GetRsum() == block.GetRsum());
@@ -197,8 +194,8 @@ namespace zsyncnet.Internal
                         else
                         {
                             // Same block, same pos
-                            //status = Status.Present;
-                            break;
+                            status = Status.Present;
+                            //break;
                         }
                     }
                 }
@@ -214,6 +211,8 @@ namespace zsyncnet.Internal
                         syncOps.Add(new SyncOperation(block, null));
                         break;
                 }
+
+                i++;
             }
             return syncOps;
         }
