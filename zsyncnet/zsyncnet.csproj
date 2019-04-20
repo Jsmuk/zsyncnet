@@ -2,6 +2,11 @@
 
     <PropertyGroup>
         <TargetFramework>netcoreapp2.1</TargetFramework>
+        <PackageVersion>0.0.1</PackageVersion>
+        <Authors>James McCartney</Authors>
+        <PackageProjectUrl>https://github.com/Jsmuk/zsyncnet</PackageProjectUrl>
+        <PackageLicenseUrl>https://opensource.org/licenses/MIT</PackageLicenseUrl>
+        <PackageTags>zsync</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
