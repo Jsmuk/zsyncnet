@@ -63,6 +63,7 @@ namespace zsyncnet
                 if (VerifyFile(of.TempPath, cf.GetHeader().Sha1))
                 {
                     File.Copy(of.TempPath.FullName,of.FilePath.FullName,true);
+                    File.Delete(of.TempPath.FullName);
                 }
                 else
                 {

@@ -100,7 +100,6 @@ namespace zsyncnet.Internal
                 {
                     var range = GetRange(op.RemoteBlock.BlockStart);
 
-                    Console.WriteLine(range.ToString());
                     var req = new HttpRequestMessage
                     {
                         RequestUri = _fileUri,
