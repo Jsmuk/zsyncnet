@@ -8,12 +8,15 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Dataflow;
 using System.Xml.Linq;
 using DotNet.Collections.Generic;
+using NLog;
 
 namespace zsyncnet.Internal
 {
 
     public class OutputFile
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         private enum ChangeType
         {
             Update,
@@ -31,6 +34,7 @@ namespace zsyncnet.Internal
         private DateTime _mtime;
         private List<BlockSum> _localBlockSums;
         private List<BlockSum> _remoteBlockSums;
+        private zsyncnet.ControlFile _cf;
 
         private FileStream _tmpStream;
         private FileStream _existingStream;
@@ -42,6 +46,7 @@ namespace zsyncnet.Internal
 
         public OutputFile(FileInfo path, zsyncnet.ControlFile cf, Uri fileUri)
         {
+            _cf = cf;
             FilePath = path;
 
             _fileUri = fileUri;
@@ -74,9 +79,9 @@ namespace zsyncnet.Internal
 
         public void Patch()
         {
-           
+
             _existingStream.CopyTo(_tmpStream);
-            
+
             _existingStream.SetLength(_length);
 
             _existingStream.Close();
@@ -104,7 +109,9 @@ namespace zsyncnet.Internal
 
                     var response = _client.SendAsync(req).Result;
                     if (response.IsSuccessStatusCode)
-                    {
+                    {   
+                        
+                        Logger.Info($"[{_cf.GetHeader().Filename}] Downloading {range}");
                         var content = response.Content.ReadAsByteArrayAsync().Result;
                         TotalBytesDownloaded += content.Length;
                         var offset = op.RemoteBlock.BlockStart * _blockSize;
@@ -154,7 +161,7 @@ namespace zsyncnet.Internal
             }
 
             _tmpStream.Flush();
-                _tmpStream.Close();
+            _tmpStream.Close();
         }
 
         private RangeHeaderValue GetRange(int block)
@@ -173,10 +180,8 @@ namespace zsyncnet.Internal
         private List<SyncOperation> CompareFiles()
         {
             List<SyncOperation> syncOps = new List<SyncOperation>();
-            int i = 0;
             foreach (var block in _remoteBlockSums)
             {
-                Console.WriteLine(i);
                 BlockSum found = null;
                 var status = Status.NotFound;
                 var localBlock = _localBlockSums.Find(x => x.GetRsum() == block.GetRsum());
@@ -211,83 +216,8 @@ namespace zsyncnet.Internal
                         syncOps.Add(new SyncOperation(block, null));
                         break;
                 }
-
-                i++;
             }
             return syncOps;
         }
-
-        private Dictionary<int, ChangeType> BuildDelta()
-        {
-            // Create list of changes that need to be made 
-                
-            /**
-             * Logically:
-             * If seed file > source file, trim to seed file size
-             * If source file > seed file, request all blocks extra
-             * Find changed blocks
-             */
-
-            
-            // TODO: This doesnt actually work (shocker) 
-            
-            var delta = new Dictionary<int, ChangeType>(); 
-            if (_localBlockSums.Count > _remoteBlockSums.Count)
-            {
-                // We have more data than the new file 
-                for (var i = _remoteBlockSums.Count; i < _localBlockSums.Count; i++)
-                {
-                    delta.Add(i,ChangeType.Remove);
-                }
-                    
-                // Compare the blocks
-
-                for (var i = 0; i < _remoteBlockSums.Count; i++)
-                {
-                    if (!_localBlockSums.Contains(_remoteBlockSums[i]))
-                    {
-                        delta.Add(i, ChangeType.Update);
-                    }
-                }
-                    
-            }
-            else if (_localBlockSums.Count < _remoteBlockSums.Count)
-            {
-                // Source has more content 
-                for (var i = _localBlockSums.Count; i < _remoteBlockSums.Count; i++)
-                {
-                    if (!_remoteBlockSums.Contains(_localBlockSums[i]))
-                    {
-                        delta.Add(i, ChangeType.Update);
-                    }
-                }
-                    
-                for (var i = 0; i < _localBlockSums.Count; i++)
-                {
-                    if (!_remoteBlockSums.Contains(_localBlockSums[i]))
-                    {
-                        delta.Add(i, ChangeType.Update);
-                    }
-                }
-            }
-            else
-            {
-                // Same number of blocks, easy
-                for (var i = 0; i < _localBlockSums.Count; i++)
-                {
-                    if (_localBlockSums[i].GetRsum() != _remoteBlockSums[i].GetRsum())
-                    {
-                        delta.Add(i, ChangeType.Update);
-                    }
-                    /*if (!_remoteBlockSums.Contains(_localBlockSums[i]))
-                    {
-                        delta.Add(i, ChangeType.Update);
-                    }*/
-                }
-            }
-
-            return delta;
-        }
-
     }
 }

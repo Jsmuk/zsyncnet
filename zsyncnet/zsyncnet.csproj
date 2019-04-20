@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <TargetFramework>netcoreapp2.1</TargetFramework>
-        <PackageVersion>0.0.1</PackageVersion>
+        <PackageVersion>0.0.1b</PackageVersion>
         <Authors>James McCartney</Authors>
         <PackageProjectUrl>https://github.com/Jsmuk/zsyncnet</PackageProjectUrl>
         <PackageLicenseUrl>https://opensource.org/licenses/MIT</PackageLicenseUrl>
@@ -14,6 +14,7 @@
       <PackageReference Include="Flurl" Version="2.8.1" />
       <PackageReference Include="Flurl.Http" Version="2.4.1" />
       <PackageReference Include="JonSkeet.MiscUtil" Version="0.2.0" />
+      <PackageReference Include="NLog" Version="4.6.2" />
     </ItemGroup>
 
 </Project>
