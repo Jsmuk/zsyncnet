@@ -31,7 +31,9 @@ namespace zsyncnet
             
             var checkSums = ComputeCheckSums(file, blockSize, fileLength, weakChecksumLength, strongCheckSumLength);
 
-            var header = new Header(ZsyncVersion, file.Name, DateTime.UtcNow, blockSize, fileLength, sequenceMatches,
+            var mtime = File.GetLastWriteTimeUtc(file.FullName);
+
+            var header = new Header(ZsyncVersion, file.Name, mtime, blockSize, fileLength, sequenceMatches,
                 weakChecksumLength, strongCheckSumLength, null, ZsyncUtil.ByteToHex(checkSums.sha1));
 
             var zsyncFile = new FileInfo(file.FullName + ".zsync");

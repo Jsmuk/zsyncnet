@@ -74,6 +74,8 @@ namespace zsyncnet.Internal
             _remoteBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
                 cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().Blocksize);
             TotalBytesDownloaded = 0;
+            // Set the last mod time to the time in the control file. 
+            File.SetLastWriteTimeUtc(TempPath.FullName, _mtime);
 
         }
 
