@@ -25,7 +25,11 @@ namespace zsyncnet
             _header = new Header(returned.first);
             _blockSums = BlockSum.ReadBlockSums(returned.last, _header.GetNumberOfBlocks(), _header.WeakChecksumLength,
                 _header.StrongChecksumLength);
-
+            NLog.LogManager.GetCurrentClassLogger().Info($"Total blocks for {_header.Filename}: {_blockSums.Count}, expected {_header.GetNumberOfBlocks()}");
+            if (_header.GetNumberOfBlocks() != _blockSums.Count)
+            {
+                throw new Exception();
+            }
         }
 
         public Header GetHeader()

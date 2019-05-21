@@ -75,7 +75,6 @@ namespace zsyncnet.Internal
                 cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().Blocksize);
             TotalBytesDownloaded = 0;
             // Set the last mod time to the time in the control file. 
-            File.SetLastWriteTimeUtc(TempPath.FullName, _mtime);
 
         }
 
@@ -94,8 +93,14 @@ namespace zsyncnet.Internal
 
             var syncOps = CompareFiles();
 
+            Logger.Info($"[{_cf.GetHeader().Filename}] Total changed blocks {syncOps.Count}");
+            int count = 0;
             foreach (var op in syncOps)
             {
+                if (op.LocalBlock != null)
+                {
+                    Console.WriteLine("BREAK HERE YO");
+                }
                 //Console.WriteLine(op.LocalBlock);
                 // If the local block is null, we need to acquire
                 if (op.LocalBlock == null)
@@ -125,6 +130,10 @@ namespace zsyncnet.Internal
                         _tmpStream.Position = offset;
                         _tmpStream.Write(content, 0, length);
                         _tmpStream.Position = 0;
+                    }
+                    else
+                    {
+                        throw new Exception();
                     }
 
                     /*
@@ -163,6 +172,8 @@ namespace zsyncnet.Internal
 
             _tmpStream.Flush();
             _tmpStream.Close();
+            File.SetLastWriteTimeUtc(TempPath.FullName, _mtime);
+
         }
 
         private RangeHeaderValue GetRange(int block)
