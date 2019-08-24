@@ -68,105 +68,113 @@ namespace zsyncnet.Internal
 
             _tmpStream.SetLength(_length);
 
-            _localBlockSums = cf.GetBlockSums();
+            _remoteBlockSums = cf.GetBlockSums();
             var fileBuffer = _existingStream.ToByteArray();
             _existingStream.Position = 0;
-            _remoteBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
+            _localBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
                 cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().Blocksize);
             TotalBytesDownloaded = 0;
             // Set the last mod time to the time in the control file. 
 
         }
 
+        private class DownloadRange
+        {
+            public long BlockStart, Size;
+        }
+
+        private List<DownloadRange> BuildRanges(List<SyncOperation> downloadBlocks)
+        {
+            // TODO: this is ugly.
+            var ranges = new List<DownloadRange>();
+
+            DownloadRange current = null;
+            foreach (var downloadBlock in downloadBlocks.Select(block => block.RemoteBlock).OrderBy(block => block.BlockStart))
+            {
+                if (current == null) // new range
+                {
+                    current = new DownloadRange
+                    {
+                        BlockStart = downloadBlock.BlockStart,
+                        Size = 1
+                    };
+                    continue;
+                }
+
+                if (downloadBlock.BlockStart == current.BlockStart + current.Size) // append
+                {
+                    current.Size ++;
+                    continue;
+                }
+
+                ranges.Add(current);
+                current = new DownloadRange
+                {
+                    BlockStart = downloadBlock.BlockStart,
+                    Size = 1
+                };
+            }
+            if (current != null)
+                ranges.Add(current);
+
+            return ranges;
+        }
+
         public void Patch()
         {
 
             _existingStream.CopyTo(_tmpStream);
-
-            _existingStream.SetLength(_length);
-
+            _tmpStream.SetLength(_length);
             _existingStream.Close();
 
-            // Fetch and Patch
-
-            //var delta = BuildDelta();
-
             var syncOps = CompareFiles();
-
             Logger.Info($"[{_cf.GetHeader().Filename}] Total changed blocks {syncOps.Count}");
-            int count = 0;
-            foreach (var op in syncOps)
+
+            var copyBlocks = syncOps.Where(so => so.LocalBlock != null);
+            var downloadBlocks = syncOps.Where(so => so.LocalBlock == null).ToList();
+
+            foreach (var so in copyBlocks)
             {
-                if (op.LocalBlock != null)
+                // TODO: handle copy blocks
+                // for now, just download them as well
+                // TODO: benchmark, find out how important they actually are
+                downloadBlocks.Add(so);
+            }
+
+            var downloadRanges = BuildRanges(downloadBlocks);
+
+
+            foreach (var op in downloadRanges)
+            {
+                long offset = op.BlockStart * _blockSize;
+                var length = op.Size * _blockSize;
+                var range = new RangeHeaderValue(offset, offset + length - 1);
+
+                var req = new HttpRequestMessage
                 {
-                    Console.WriteLine("BREAK HERE YO");
+                    RequestUri = _fileUri,
+                    Headers = {Range = range}
+                };
+
+                var response = _client.SendAsync(req).Result;
+                if (response.IsSuccessStatusCode)
+                {
+
+                    Logger.Info($"[{_cf.GetHeader().Filename}] Downloading {range}");
+                    var content = response.Content.ReadAsByteArrayAsync().Result;
+                    TotalBytesDownloaded += content.Length;
+                    if (offset + length > _length) // fix size for last block
+                    {
+                        length = _length - offset;
+                    }
+
+                    _tmpStream.Position = offset;
+                    _tmpStream.Write(content, 0, (int)length);
+                    _tmpStream.Position = 0;
                 }
-                //Console.WriteLine(op.LocalBlock);
-                // If the local block is null, we need to acquire
-                if (op.LocalBlock == null)
+                else
                 {
-                    var range = GetRange(op.RemoteBlock.BlockStart);
-
-                    var req = new HttpRequestMessage
-                    {
-                        RequestUri = _fileUri,
-                        Headers = {Range = range}
-                    };
-
-                    var response = _client.SendAsync(req).Result;
-                    if (response.IsSuccessStatusCode)
-                    {   
-                        
-                        Logger.Info($"[{_cf.GetHeader().Filename}] Downloading {range}");
-                        var content = response.Content.ReadAsByteArrayAsync().Result;
-                        TotalBytesDownloaded += content.Length;
-                        var offset = op.RemoteBlock.BlockStart * _blockSize;
-                        var length = _blockSize;
-                        if (offset + _blockSize > _length)
-                        {
-                            length = _lastBlockSize;
-                        }
-
-                        _tmpStream.Position = offset;
-                        _tmpStream.Write(content, 0, length);
-                        _tmpStream.Position = 0;
-                    }
-                    else
-                    {
-                        throw new Exception();
-                    }
-
-                    /*
-                    foreach (var x in delta)
-                    {
-                        if (x.Value != ChangeType.Update) continue;
-                        var range = GetRange(x.Key);
-        
-                        Console.WriteLine(range.ToString());
-                        var req = new HttpRequestMessage
-                        {
-                            RequestUri = _fileUri,
-                            Headers = {Range = range}
-                        };
-        
-                        var response = _client.SendAsync(req).Result;
-                        if (response.IsSuccessStatusCode)
-                        {
-                            var content = response.Content.ReadAsByteArrayAsync().Result;
-                            TotalBytesDownloaded += content.Length;
-                            var offset = x.Key * _blockSize;
-                            var length = _blockSize;
-                            if (offset + _blockSize > _length)
-                            {
-                                length = _lastBlockSize;
-                            }
-        
-                            _tmpStream.Position = offset;
-                            _tmpStream.Write(content, 0, length);
-                        }
-        
-                    }
-                    */
+                    throw new Exception();
                 }
             }
 
@@ -176,59 +184,21 @@ namespace zsyncnet.Internal
 
         }
 
-        private RangeHeaderValue GetRange(int block)
-        {
-            long offset = block * _blockSize;
-            return new RangeHeaderValue(offset, offset + _blockSize - 1);
-        }
-
-        private enum Status
-        {
-            NotFound,
-            Copied,
-            Present
-
-        }
         private List<SyncOperation> CompareFiles()
         {
-            List<SyncOperation> syncOps = new List<SyncOperation>();
-            foreach (var block in _remoteBlockSums)
-            {
-                BlockSum found = null;
-                var status = Status.NotFound;
-                var localBlock = _localBlockSums.Find(x => x.GetRsum() == block.GetRsum());
-                if (localBlock != null)
-                {
-                    // Block found
-                    if (localBlock.GetRsum() == block.GetRsum() && localBlock.GetChecksum().SequenceEqual(block.GetChecksum()))
-                    {
-                        if (localBlock.BlockStart != block.BlockStart)
-                        {
-                            // Block has moved 
-                            found = block;
-                            status = Status.Copied;
-                        }
-                        else
-                        {
-                            // Same block, same pos
-                            status = Status.Present;
-                            //break;
-                        }
-                    }
-                }
+            var syncOps = new List<SyncOperation>();
 
-                switch (status)
-                {
-                    case Status.Copied:
-                        // Add to queue 
-                        syncOps.Add(new SyncOperation(block,found));
-                        break;
-                    case Status.NotFound:
-                        // Block doesnt exist, we need to download
-                        syncOps.Add(new SyncOperation(block, null));
-                        break;
-                }
+            for (var i = 0; i < _remoteBlockSums.Count; i++)
+            {
+                var remoteBlock = _remoteBlockSums[i];
+
+                if (i < _localBlockSums.Count && _localBlockSums[i].ChecksumsMatch(remoteBlock)) continue; // present
+
+                var localBlock = _localBlockSums.Find(x => x.ChecksumsMatch(remoteBlock));
+
+                syncOps.Add(new SyncOperation(remoteBlock, localBlock));
             }
+
             return syncOps;
         }
     }
