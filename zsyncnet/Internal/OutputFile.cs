@@ -68,10 +68,10 @@ namespace zsyncnet.Internal
 
             _tmpStream.SetLength(_length);
 
-            _localBlockSums = cf.GetBlockSums();
+            _remoteBlockSums = cf.GetBlockSums();
             var fileBuffer = _existingStream.ToByteArray();
             _existingStream.Position = 0;
-            _remoteBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
+            _localBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
                 cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().Blocksize);
             TotalBytesDownloaded = 0;
             // Set the last mod time to the time in the control file. 
@@ -99,7 +99,7 @@ namespace zsyncnet.Internal
             {
                 if (op.LocalBlock != null)
                 {
-                    Console.WriteLine("BREAK HERE YO");
+                    throw new NotImplementedException();
                 }
                 //Console.WriteLine(op.LocalBlock);
                 // If the local block is null, we need to acquire
