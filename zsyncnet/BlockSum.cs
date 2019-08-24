@@ -198,6 +198,11 @@ namespace zsyncnet
 
         }
 
+        public bool ChecksumsMatch(BlockSum other)
+        {
+            return GetRsum() == other.GetRsum() && GetChecksum().SequenceEqual(other.GetChecksum());
+        }
+
         public bool IsNull { get; }
     }
 }

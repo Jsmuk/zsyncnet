@@ -184,53 +184,21 @@ namespace zsyncnet.Internal
             return new RangeHeaderValue(offset, offset + _blockSize - 1);
         }
 
-        private enum Status
-        {
-            NotFound,
-            Copied,
-            Present
-
-        }
         private List<SyncOperation> CompareFiles()
         {
-            List<SyncOperation> syncOps = new List<SyncOperation>();
-            foreach (var block in _remoteBlockSums)
-            {
-                BlockSum found = null;
-                var status = Status.NotFound;
-                var localBlock = _localBlockSums.Find(x => x.GetRsum() == block.GetRsum());
-                if (localBlock != null)
-                {
-                    // Block found
-                    if (localBlock.GetRsum() == block.GetRsum() && localBlock.GetChecksum().SequenceEqual(block.GetChecksum()))
-                    {
-                        if (localBlock.BlockStart != block.BlockStart)
-                        {
-                            // Block has moved 
-                            found = block;
-                            status = Status.Copied;
-                        }
-                        else
-                        {
-                            // Same block, same pos
-                            status = Status.Present;
-                            //break;
-                        }
-                    }
-                }
+            var syncOps = new List<SyncOperation>();
 
-                switch (status)
-                {
-                    case Status.Copied:
-                        // Add to queue 
-                        syncOps.Add(new SyncOperation(block,found));
-                        break;
-                    case Status.NotFound:
-                        // Block doesnt exist, we need to download
-                        syncOps.Add(new SyncOperation(block, null));
-                        break;
-                }
+            for (var i = 0; i < _remoteBlockSums.Count; i++)
+            {
+                var remoteBlock = _remoteBlockSums[i];
+
+                if (i < _localBlockSums.Count && _localBlockSums[i].ChecksumsMatch(remoteBlock)) continue; // present
+
+                var localBlock = _localBlockSums.Find(x => x.ChecksumsMatch(remoteBlock));
+
+                syncOps.Add(new SyncOperation(remoteBlock, localBlock));
             }
+
             return syncOps;
         }
     }
