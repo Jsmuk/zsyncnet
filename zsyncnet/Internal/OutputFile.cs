@@ -83,7 +83,7 @@ namespace zsyncnet.Internal
 
             _existingStream.CopyTo(_tmpStream);
 
-            _existingStream.SetLength(_length);
+            _tmpStream.SetLength(_length);
 
             _existingStream.Close();
 
@@ -99,7 +99,9 @@ namespace zsyncnet.Internal
             {
                 if (op.LocalBlock != null)
                 {
-                    throw new NotImplementedException();
+                    // TODO: implement
+                    // for now: just fetch it
+                    op.LocalBlock = null;
                 }
                 //Console.WriteLine(op.LocalBlock);
                 // If the local block is null, we need to acquire
