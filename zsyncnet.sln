@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "zsyncnet", "zsyncnet.csproj", "{93B2D2D6-E588-4535-9995-936CAB9B53A5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "zsyncnet", "zsyncnet\zsyncnet.csproj", "{93B2D2D6-E588-4535-9995-936CAB9B53A5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestBench", "..\TestBench\TestBench.csproj", "{A8018161-FC64-413D-8B3E-2EB987C6C532}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestBench", "TestBench\TestBench.csproj", "{A8018161-FC64-413D-8B3E-2EB987C6C532}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
