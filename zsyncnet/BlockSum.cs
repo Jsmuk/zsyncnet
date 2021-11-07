@@ -60,8 +60,6 @@ namespace zsyncnet
 
         public static List<BlockSum> GenerateBlocksum(byte[] input, int weakLength, int strongLength, int blockSize)
         {
-
-
             using (var stream = new MemoryStream(input))
             {
                 int capacity = ((int) (input.Length / blockSize) + (input.Length % blockSize > 0 ? 1 : 0)) * (weakLength + strongLength)
@@ -89,7 +87,8 @@ namespace zsyncnet
                     weakbytesMs.Position = weakbytesMs.Length - weakLength;
 
 
-                    var strongbytesMs = new MemoryStream(ZsyncUtil.Md4Hash(block.ToArray()));
+                    var md4 = ZsyncUtil.Md4Hash(block.ToArray());
+                    var strongbytesMs = new MemoryStream(md4);
                     strongbytesMs.SetLength(strongLength);
 
                     byte[] strongBytesBuffer = new byte[strongLength];

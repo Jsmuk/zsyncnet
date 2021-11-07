@@ -2,69 +2,36 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks.Dataflow;
-using System.Xml.Linq;
-using DotNet.Collections.Generic;
+using System.Security.Cryptography;
 using NLog;
 
 namespace zsyncnet.Internal
 {
-
     public class OutputFile
     {
+        private readonly IRangeDownloader _downloader;
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-        private enum ChangeType
+        private readonly int _blockSize;
+        private readonly long _length;
+        private readonly List<BlockSum> _localBlockSums;
+        private readonly IReadOnlyList<BlockSum> _remoteBlockSums;
+
+        private readonly Stream _tmpStream;
+        private readonly Stream _existingStream;
+        private readonly string _sha1;
+
+
+        public OutputFile(Stream input, zsyncnet.ControlFile cf, IRangeDownloader downloader, Stream output)
         {
-            Update,
-            Remove
-        }
+            _downloader = downloader;
 
-        public FileInfo FilePath { get; }
-        public FileInfo TempPath { get; }
-
-        public long TotalBytesDownloaded { get; set; }
-        private int _blockSize;
-        private int _lastBlockSize;
-        private long _length;
-        private string _sha1;
-        private DateTime _mtime;
-        private List<BlockSum> _localBlockSums;
-        private List<BlockSum> _remoteBlockSums;
-        private zsyncnet.ControlFile _cf;
-
-        private FileStream _tmpStream;
-        private FileStream _existingStream;
-
-        private Uri _fileUri;
-
-        private static HttpClient _client = new HttpClient();
-
-
-        public OutputFile(FileInfo path, zsyncnet.ControlFile cf, Uri fileUri)
-        {
-            _cf = cf;
-            FilePath = path;
-
-            _fileUri = fileUri;
             _blockSize = cf.GetHeader().BlockSize;
             _length = cf.GetHeader().Length;
-            _lastBlockSize = (int) (_length % _blockSize == 0 ? _blockSize : _length % _blockSize);
             _sha1 = cf.GetHeader().Sha1;
-            _mtime = cf.GetHeader().MTime;
 
-            TempPath = new FileInfo(FilePath.FullName + ".part");
-
-            // Create all directories
-            Directory.CreateDirectory(TempPath.Directory.FullName);
-
-            // Open stream
-
-            _tmpStream = new FileStream(TempPath.FullName, FileMode.Create, FileAccess.ReadWrite);
-            _existingStream = new FileStream(FilePath.FullName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+            _tmpStream = output ?? new MemoryStream((int)_length);
+            _existingStream = input;
 
             _tmpStream.SetLength(_length);
 
@@ -73,7 +40,6 @@ namespace zsyncnet.Internal
             _existingStream.Position = 0;
             _localBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
                 cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().BlockSize);
-            TotalBytesDownloaded = 0;
             // Set the last mod time to the time in the control file.
 
         }
@@ -128,7 +94,7 @@ namespace zsyncnet.Internal
             _existingStream.Close();
 
             var syncOps = CompareFiles();
-            Logger.Info($"[{_cf.GetHeader().Filename}] Total changed blocks {syncOps.Count}");
+            Logger.Info($"Total changed blocks {syncOps.Count}");
 
             var copyBlocks = syncOps.Where(so => so.LocalBlock != null);
             var downloadBlocks = syncOps.Where(so => so.LocalBlock == null).ToList();
@@ -148,40 +114,32 @@ namespace zsyncnet.Internal
             {
                 long offset = op.BlockStart * _blockSize;
                 var length = op.Size * _blockSize;
-                var range = new RangeHeaderValue(offset, offset + length - 1);
-
-                var req = new HttpRequestMessage
+                if (offset + length > _length) // fix size for last block
                 {
-                    RequestUri = _fileUri,
-                    Headers = {Range = range}
-                };
-
-                var response = _client.SendAsync(req).Result;
-                if (response.IsSuccessStatusCode)
-                {
-
-                    Logger.Info($"[{_cf.GetHeader().Filename}] Downloading {range}");
-                    var content = response.Content.ReadAsByteArrayAsync().Result;
-                    TotalBytesDownloaded += content.Length;
-                    if (offset + length > _length) // fix size for last block
-                    {
-                        length = _length - offset;
-                    }
-
-                    _tmpStream.Position = offset;
-                    _tmpStream.Write(content, 0, (int)length);
-                    _tmpStream.Position = 0;
+                    length = _length - offset;
                 }
-                else
-                {
-                    throw new Exception();
-                }
+
+                var content = _downloader.DownloadRange(offset, offset + length);
+
+                _tmpStream.Position = offset;
+                content.CopyTo(_tmpStream);
+                _tmpStream.Position = 0;
             }
 
             _tmpStream.Flush();
-            _tmpStream.Close();
-            File.SetLastWriteTimeUtc(TempPath.FullName, _mtime);
 
+            if (!VerifyFile(_tmpStream, _sha1))
+                throw new Exception("Verification failed");
+
+            _tmpStream.Close();
+        }
+
+        private static bool VerifyFile(Stream stream, string checksum)
+        {
+            stream.Position = 0;
+            using var crypto = new SHA1CryptoServiceProvider();
+            var hash = ZsyncUtil.ByteToHex(crypto.ComputeHash(stream));
+            return hash == checksum;
         }
 
         private List<SyncOperation> CompareFiles()

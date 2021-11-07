@@ -5,6 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Flurl.Http;
+using MiscUtil.Collections.Extensions;
 using zsyncnet.Internal;
 using zsyncnet.Internal.ControlFile;
 
@@ -55,7 +56,19 @@ namespace zsyncnet
             {
                 // File exists, use the existing file as the seed file
 
-                return Sync(cf, new FileInfo(path), fileUri);
+                var rangeDownloader = new RangeDownloader(fileUri);
+
+                var tempPath = new FileInfo(path + ".part");
+                Directory.CreateDirectory(tempPath.Directory.FullName);
+                using var tmpStream = new FileStream(tempPath.FullName, FileMode.Create, FileAccess.ReadWrite);
+
+                using var stream = File.OpenRead(path);
+                Sync(cf, stream, rangeDownloader, tmpStream);
+
+                // TODO: File.SetLastWriteTimeUtc(TempPath.FullName, _mtime);
+                // TODO: replace file with tmpfile
+
+                return rangeDownloader.TotalBytesDownloaded;
             }
             else
             {
@@ -65,33 +78,10 @@ namespace zsyncnet
             }
         }
 
-        public static long Sync(ControlFile controlFile, FileInfo localFile, Uri remoteFile)
+        public static void Sync(ControlFile controlFile, Stream seed, IRangeDownloader remoteFile, Stream output)
         {
-            var of = new OutputFile(localFile, controlFile, remoteFile);
-
+            var of = new OutputFile(seed, controlFile, remoteFile, output);
             of.Patch();
-
-            if (VerifyFile(of.TempPath, controlFile.GetHeader().Sha1))
-            {
-                File.Copy(of.TempPath.FullName,of.FilePath.FullName,true);
-                File.Delete(of.TempPath.FullName);
-            }
-            else
-            {
-                throw new Exception("File invalid");
-            }
-
-            return of.TotalBytesDownloaded;
         }
-
-        private static bool VerifyFile(FileInfo file, string checksum)
-        {
-            using var crypto = new SHA1CryptoServiceProvider();
-            var fileStream = file.OpenRead();
-            var hash = ZsyncUtil.ByteToHex(crypto.ComputeHash(fileStream));
-
-            return hash == checksum;
-        }
-
     }
 }

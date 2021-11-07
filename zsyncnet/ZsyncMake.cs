@@ -1,12 +1,8 @@
 using System;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks.Sources;
 using zsyncnet.Internal.ControlFile;
 
 namespace zsyncnet
@@ -16,10 +12,9 @@ namespace zsyncnet
         private const int BlockSizeSmall = 2048;
         private const int BlockSizeLarge = 4096;
         private const string ZsyncVersion = "0.6.2";
-        public static void Make(FileInfo file)
-        {
 
-            //var blockSize = 2048;
+        public static ControlFile MakeControlFile(Stream file, DateTime lastWrite, string name)
+        {
             var fileLength = file.Length;
 
             var blockSize = CalculateBlocksize(file.Length);
@@ -28,16 +23,25 @@ namespace zsyncnet
             var weakChecksumLength = CalculateWeakChecksumLength(fileLength, blockSize, sequenceMatches);
             var strongCheckSumLength = CalculateStrongChecksumLength(fileLength, blockSize, sequenceMatches);
 
-            var checkSums = ComputeCheckSums(file, blockSize, fileLength, weakChecksumLength, strongCheckSumLength);
+            var checkSums = ComputeCheckSums(file, weakChecksumLength, strongCheckSumLength, blockSize);
 
+            using var crypto = new SHA1CryptoServiceProvider();
+            file.Position = 0;
+            var sha1 = ZsyncUtil.ByteToHex(crypto.ComputeHash(file));
+
+            var header = new Header(ZsyncVersion, name, lastWrite, blockSize, fileLength, sequenceMatches,
+                weakChecksumLength, strongCheckSumLength, null, sha1);
+
+            return new ControlFile(header, checkSums);
+        }
+
+        public static void Make(FileInfo file)
+        {
             var mtime = File.GetLastWriteTimeUtc(file.FullName);
-
-            var header = new Header(ZsyncVersion, file.Name, mtime, blockSize, fileLength, sequenceMatches,
-                weakChecksumLength, strongCheckSumLength, null, ZsyncUtil.ByteToHex(checkSums.sha1));
-
+            using var stream = file.OpenRead();
+            var cf = MakeControlFile(stream, mtime, file.Name);
             var zsyncFile = new FileInfo(file.FullName + ".zsync");
-
-            WriteFile(header,new MemoryStream(checkSums.checksums),zsyncFile);
+            cf.WriteToFile(zsyncFile.FullName);
         }
 
         /// <summary>
@@ -48,37 +52,6 @@ namespace zsyncnet
         private static int CalculateBlocksize(long fileLength)
         {
             return fileLength < 100 * 1 << 20 ? BlockSizeSmall : BlockSizeLarge;
-        }
-
-        private static void WriteFile(Header header, MemoryStream checkSums, FileInfo path)
-        {
-            using (FileStream fs = new FileStream(path.FullName, FileMode.Create, FileAccess.Write))
-            {
-                fs.Write(StringToBytes(BuildHeaderLine("zsync",header.Version)));
-                fs.Write(StringToBytes(BuildHeaderLine("Filename",header.Filename)));
-                fs.Write(
-                    StringToBytes(BuildHeaderLine("MTime", header.MTime.ToString("r"))));
-                fs.Write(StringToBytes(BuildHeaderLine("Blocksize",header.BlockSize.ToString())));
-                fs.Write(StringToBytes(BuildHeaderLine("Length",header.Length.ToString())));
-                fs.Write(StringToBytes(BuildHeaderLine("Hash-Lengths",$"{header.SequenceMatches},{header.WeakChecksumLength},{header.StrongChecksumLength}")));
-                fs.Write(header.Url != null
-                    ? StringToBytes(BuildHeaderLine("URL", header.Url))
-                    : StringToBytes(BuildHeaderLine("URL", header.Filename)));
-                fs.Write(StringToBytes(BuildHeaderLine("SHA-1", header.Sha1)));
-                fs.Write(StringToBytes("\n"));
-
-                fs.Write(checkSums.ToArray());
-            }
-        }
-
-        private static string BuildHeaderLine(string key, string value)
-        {
-            return $"{key}: {value} \n";
-        }
-
-        private static byte[] StringToBytes(string str)
-        {
-            return Encoding.ASCII.GetBytes(str);
         }
 
         private static int CalculateStrongChecksumLength(long fileLength, int blockSize, int sequenceMatches)
@@ -106,36 +79,16 @@ namespace zsyncnet
             return l > 4 ? 4 : l < 2 ? 2 : l;
         }
 
-        private static (byte[] checksums, byte[] sha1) ComputeCheckSums(FileInfo file, int blockSize, long fileLength,
-            int weakLength, int strongLength)
+        public static List<BlockSum> ComputeCheckSums(Stream input, int weakLength, int strongLength, int blockSize)
         {
-            /*
-             * As per the zsync spec, a weak checksum is md4 and a strong checksum is sha1
-             */
+            // TODO: fix weak checksum length?
 
-            int capacity = ((int) (fileLength / blockSize) + (fileLength % blockSize > 0 ? 1 : 0)) * (weakLength + strongLength)
-                           + 20;
+            var result = new List<BlockSum>();
 
-            // 20 = SHA1 length
-
-
-            /*
-             * CheckSums
-             * WeakBytes
-             *
-             * Limit = Length
-             */
-
-            var checkSumsMs = new MemoryStream(capacity);
-            var weakbytesMs = new MemoryStream(weakLength);
-
-            byte[] block = new byte[blockSize];
-
-            using var stream =
-                new BufferedStream(new FileStream(file.FullName,FileMode.Open,FileAccess.Read),1000000);
+            var count = 0;
+            var block = new byte[blockSize];
             int read;
-
-            while ((read = stream.Read(block)) != 0)
+            while ((read = input.Read(block)) != 0)
             {
                 if (read < blockSize)
                 {
@@ -143,29 +96,15 @@ namespace zsyncnet
                     block = Pad(block, read, blockSize, 0);
                 }
 
-                //weakbytesMs.Clear();
-                weakbytesMs.SetLength(0);
-                weakbytesMs.SetLength(weakLength);
+                var weakCheckSum = (ushort)ZsyncUtil.ComputeRsum(block);
+                var strongCheckSum = ZsyncUtil.Md4Hash(block.ToArray());
+                Array.Resize(ref strongCheckSum, strongLength);
 
-                var weakCheckSum = (ushort) ZsyncUtil.ComputeRsum(block);
-
-                //weakbytesMs.Position = weakbytesMs.Length - weakLength;
-
-                checkSumsMs.Write(MiscUtil.Conversion.EndianBitConverter.Big.GetBytes(weakCheckSum));
-
-                var strongbytesMs = new MemoryStream(ZsyncUtil.Md4Hash(block.ToArray()));
-                strongbytesMs.SetLength(strongLength);
-
-                byte[] strongBytesBuffer = new byte[strongLength];
-                strongbytesMs.Read(strongBytesBuffer, 0, strongLength);
-                checkSumsMs.Write(strongBytesBuffer,0,strongLength);
+                result.Add(new BlockSum(weakCheckSum, strongCheckSum, count));
+                count++;
             }
 
-            stream.Seek(0, SeekOrigin.Begin);
-            var cryptoProvider = new SHA1CryptoServiceProvider();
-            var fileHash = cryptoProvider.ComputeHash(stream);
-
-            return (checkSumsMs.ToArray(), fileHash);
+            return result;
         }
 
 
