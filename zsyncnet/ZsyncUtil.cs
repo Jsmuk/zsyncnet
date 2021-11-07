@@ -16,24 +16,19 @@ namespace zsyncnet
                 short val = ToUnsigned(block[i]);
                 a += val;
                 b += (short) (l * val);
-                
+
             }
 
             return (uint) ToInt(a, b);
-            
+
         }
 
-        public static int ToInt(short x, short y)
+        private static int ToInt(short x, short y)
         {
             return (x << 16) | (y & 0xffff);
         }
 
-        public static long ToLong(int x, int y)
-        {
-            return (((long) x) << 32) | (y & 0xffffffffL);
-        }
-
-        public static short ToUnsigned(byte b)
+        private static short ToUnsigned(byte b)
         {
             return (short) (b < 0 ? b & 0xFF : b);
         }
@@ -71,20 +66,22 @@ namespace zsyncnet
             {
                 var chunk = uints.GetRange(q, 16);
                 uint aa = a, bb = b, cc = c, dd = d;
-                Action<Func<uint, uint, uint, uint>, uint[]> round = (f, y) =>
+
+                void Round(Func<uint, uint, uint, uint> f, uint[] y)
                 {
-                    foreach (uint i in new[] {y[0], y[1], y[2], y[3]})
+                    foreach (uint i in new[] { y[0], y[1], y[2], y[3] })
                     {
-                        a = rol(a + f(b, c, d) + chunk[(int) (i + y[4])] + y[12], y[8]);
-                        d = rol(d + f(a, b, c) + chunk[(int) (i + y[5])] + y[12], y[9]);
-                        c = rol(c + f(d, a, b) + chunk[(int) (i + y[6])] + y[12], y[10]);
-                        b = rol(b + f(c, d, a) + chunk[(int) (i + y[7])] + y[12], y[11]);
+                        a = rol(a + f(b, c, d) + chunk[(int)(i + y[4])] + y[12], y[8]);
+                        d = rol(d + f(a, b, c) + chunk[(int)(i + y[5])] + y[12], y[9]);
+                        c = rol(c + f(d, a, b) + chunk[(int)(i + y[6])] + y[12], y[10]);
+                        b = rol(b + f(c, d, a) + chunk[(int)(i + y[7])] + y[12], y[11]);
                     }
-                };
-                round((x, y, z) => (x & y) | (~x & z), new uint[] {0, 4, 8, 12, 0, 1, 2, 3, 3, 7, 11, 19, 0});
-                round((x, y, z) => (x & y) | (x & z) | (y & z),
+                }
+
+                Round((x, y, z) => (x & y) | (~x & z), new uint[] {0, 4, 8, 12, 0, 1, 2, 3, 3, 7, 11, 19, 0});
+                Round((x, y, z) => (x & y) | (x & z) | (y & z),
                     new uint[] {0, 1, 2, 3, 0, 4, 8, 12, 3, 5, 9, 13, 0x5a827999});
-                round((x, y, z) => x ^ y ^ z, new uint[] {0, 2, 1, 3, 0, 8, 4, 12, 3, 9, 11, 15, 0x6ed9eba1});
+                Round((x, y, z) => x ^ y ^ z, new uint[] {0, 2, 1, 3, 0, 8, 4, 12, 3, 9, 11, 15, 0x6ed9eba1});
                 a += aa;
                 b += bb;
                 c += cc;

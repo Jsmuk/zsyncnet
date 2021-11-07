@@ -6,12 +6,10 @@ namespace zsyncnet
 {
     public static class ArrayExtensions
     {
-        static readonly int [] Empty = new int [0];
-
         public static int [] Locate (this byte [] self, byte [] candidate)
         {
             if (IsEmptyLocate (self, candidate))
-                return Empty;
+                return Array.Empty<int>();
 
             var list = new List<int> ();
 
@@ -22,10 +20,10 @@ namespace zsyncnet
                 list.Add (i);
             }
 
-            return list.Count == 0 ? Empty : list.ToArray ();
+            return list.Count == 0 ? Array.Empty<int>() : list.ToArray ();
         }
 
-        static bool IsMatch (byte [] array, int position, byte [] candidate)
+        private static bool IsMatch (byte [] array, int position, byte [] candidate)
         {
             if (candidate.Length > (array.Length - position))
                 return false;
@@ -37,7 +35,7 @@ namespace zsyncnet
             return true;
         }
 
-        static bool IsEmptyLocate (byte [] array, byte [] candidate)
+        private static bool IsEmptyLocate (byte [] array, byte [] candidate)
         {
             return array == null
                    || candidate == null
@@ -45,33 +43,13 @@ namespace zsyncnet
                    || candidate.Length == 0
                    || candidate.Length > array.Length;
         }
-        
+
         public static byte[] ToByteArray(this Stream stream)
         {
             using(var memoryStream = new MemoryStream())
             {
                 stream.CopyTo(memoryStream);
                 return memoryStream.ToArray();
-            }
-        }
-        
-        public static void ReadFully(this Stream stream, byte[] buffer)
-        {
-            int offset = 0;
-            int readBytes;
-            do
-            {
-                // If you are using Socket directly instead of a Stream:
-                //readBytes = socket.Receive(buffer, offset, buffer.Length - offset,
-                //                           SocketFlags.None);
-
-                readBytes = stream.Read(buffer, offset, buffer.Length - offset);
-                offset += readBytes;
-            } while (readBytes > 0 && offset < buffer.Length);
-
-            if (offset < buffer.Length)
-            {
-                throw new EndOfStreamException();
             }
         }
     }

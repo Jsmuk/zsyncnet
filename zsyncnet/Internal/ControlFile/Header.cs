@@ -9,7 +9,7 @@ namespace zsyncnet.Internal.ControlFile
         public string Version { get; }
         public string Filename { get; }
         public DateTime MTime { get; }
-        public int Blocksize { get; }
+        public int BlockSize { get; }
         public long Length { get; }
         public int WeakChecksumLength { get; }
         public int StrongChecksumLength { get; }
@@ -23,17 +23,17 @@ namespace zsyncnet.Internal.ControlFile
         /// <param name="version"></param>
         /// <param name="filename"></param>
         /// <param name="mTime"></param>
-        /// <param name="blocksize"></param>
+        /// <param name="blockSize"></param>
         /// <param name="length"></param>
         /// <param name="sequenceMatches"></param>
         /// <param name="url"></param>
         /// <param name="sha1"></param>
-        public Header(string version, string filename, DateTime mTime, int blocksize, long length, int sequenceMatches, int weakChecksumLength, int strongChecksumLength ,string url, string sha1)
+        public Header(string version, string filename, DateTime mTime, int blockSize, long length, int sequenceMatches, int weakChecksumLength, int strongChecksumLength ,string url, string sha1)
         {
             Version = version;
             Filename = filename;
             MTime = mTime;
-            Blocksize = blocksize;
+            BlockSize = blockSize;
             Length = length;
             SequenceMatches = sequenceMatches;
             Url = url;
@@ -48,7 +48,7 @@ namespace zsyncnet.Internal.ControlFile
         /// <returns></returns>
         public int GetNumberOfBlocks()
         {
-            return (int)(Length + Blocksize - 1) / Blocksize;
+            return (int)(Length + BlockSize - 1) / BlockSize;
         }
         /// <summary>
         /// Reads the header of a control file
@@ -75,7 +75,7 @@ namespace zsyncnet.Internal.ControlFile
                             MTime = DateTime.Parse(pair.Value);
                             break;
                         case "Blocksize":
-                            Blocksize = Convert.ToInt32(pair.Value);
+                            BlockSize = Convert.ToInt32(pair.Value);
                             break;
                         case "Length":
                             Length = Convert.ToInt64(pair.Value);
@@ -98,7 +98,7 @@ namespace zsyncnet.Internal.ControlFile
         }
 
         /// <summary>
-        /// Splits a zsync key:value pair into its constituent parts 
+        /// Splits a zsync key:value pair into its constituent parts
         /// </summary>
         /// <param name="str">String to split</param>
         /// <returns>Key, Value</returns>
@@ -111,7 +111,7 @@ namespace zsyncnet.Internal.ControlFile
                 throw new ArgumentException("str not a valid key:value pair");
             }
 
-            return (split[0], split[1].TrimStart().TrimEnd());
+            return (split[0], split[1].Trim());
         }
 
         private (int SequenceMatches, int WeakChecksumLength, int StrongChecksumLength) SplitHashLengths(string str)

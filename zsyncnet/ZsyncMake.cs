@@ -18,7 +18,7 @@ namespace zsyncnet
         private const string ZsyncVersion = "0.6.2";
         public static void Make(FileInfo file)
         {
-            
+
             //var blockSize = 2048;
             var fileLength = file.Length;
 
@@ -28,7 +28,6 @@ namespace zsyncnet
             var weakChecksumLength = CalculateWeakChecksumLength(fileLength, blockSize, sequenceMatches);
             var strongCheckSumLength = CalculateStrongChecksumLength(fileLength, blockSize, sequenceMatches);
 
-            
             var checkSums = ComputeCheckSums(file, blockSize, fileLength, weakChecksumLength, strongCheckSumLength);
 
             var mtime = File.GetLastWriteTimeUtc(file.FullName);
@@ -37,11 +36,8 @@ namespace zsyncnet
                 weakChecksumLength, strongCheckSumLength, null, ZsyncUtil.ByteToHex(checkSums.sha1));
 
             var zsyncFile = new FileInfo(file.FullName + ".zsync");
-            
-            WriteFile(header,new MemoryStream(checkSums.checksums),zsyncFile);
-            
-            
 
+            WriteFile(header,new MemoryStream(checkSums.checksums),zsyncFile);
         }
 
         /// <summary>
@@ -62,7 +58,7 @@ namespace zsyncnet
                 fs.Write(StringToBytes(BuildHeaderLine("Filename",header.Filename)));
                 fs.Write(
                     StringToBytes(BuildHeaderLine("MTime", header.MTime.ToString("r"))));
-                fs.Write(StringToBytes(BuildHeaderLine("Blocksize",header.Blocksize.ToString())));
+                fs.Write(StringToBytes(BuildHeaderLine("Blocksize",header.BlockSize.ToString())));
                 fs.Write(StringToBytes(BuildHeaderLine("Length",header.Length.ToString())));
                 fs.Write(StringToBytes(BuildHeaderLine("Hash-Lengths",$"{header.SequenceMatches},{header.WeakChecksumLength},{header.StrongChecksumLength}")));
                 fs.Write(header.Url != null
@@ -121,60 +117,57 @@ namespace zsyncnet
                            + 20;
 
             // 20 = SHA1 length
-            
-            
+
+
             /*
              * CheckSums
              * WeakBytes
              *
              * Limit = Length
              */
-            
+
             var checkSumsMs = new MemoryStream(capacity);
             var weakbytesMs = new MemoryStream(weakLength);
 
             byte[] block = new byte[blockSize];
 
-            using (BufferedStream stream =
-                new BufferedStream(new FileStream(file.FullName,FileMode.Open,FileAccess.Read),1000000))
+            using var stream =
+                new BufferedStream(new FileStream(file.FullName,FileMode.Open,FileAccess.Read),1000000);
+            int read;
+
+            while ((read = stream.Read(block)) != 0)
             {
-                int read;
-
-                while ((read = stream.Read(block)) != 0)
+                if (read < blockSize)
                 {
-                    if (read < blockSize)
-                    {
-                        // Pad with 0's 
-                        block = Pad(block, read, blockSize, 0);
-                    }
-                    
-                    //weakbytesMs.Clear();
-                    weakbytesMs.SetLength(0);
-                    weakbytesMs.SetLength(weakLength);
-
-                    var weakCheckSum = (ushort) ZsyncUtil.ComputeRsum(block);
-                  
-                    //weakbytesMs.Position = weakbytesMs.Length - weakLength;
-                    
-                    checkSumsMs.Write(MiscUtil.Conversion.EndianBitConverter.Big.GetBytes(weakCheckSum));
-
-                    var strongbytesMs = new MemoryStream(ZsyncUtil.Md4Hash(block.ToArray()));
-                    strongbytesMs.SetLength(strongLength);
-                    
-                    byte[] strongBytesBuffer = new byte[strongLength];
-                    strongbytesMs.Read(strongBytesBuffer, 0, strongLength);
-                    checkSumsMs.Write(strongBytesBuffer,0,strongLength);
+                    // Pad with 0's
+                    block = Pad(block, read, blockSize, 0);
                 }
 
-                stream.Seek(0, SeekOrigin.Begin);
-                var cryptoProvider = new SHA1CryptoServiceProvider();
-                var fileHash = cryptoProvider.ComputeHash(stream);
-           
-                return (checkSumsMs.ToArray(), fileHash);
+                //weakbytesMs.Clear();
+                weakbytesMs.SetLength(0);
+                weakbytesMs.SetLength(weakLength);
+
+                var weakCheckSum = (ushort) ZsyncUtil.ComputeRsum(block);
+
+                //weakbytesMs.Position = weakbytesMs.Length - weakLength;
+
+                checkSumsMs.Write(MiscUtil.Conversion.EndianBitConverter.Big.GetBytes(weakCheckSum));
+
+                var strongbytesMs = new MemoryStream(ZsyncUtil.Md4Hash(block.ToArray()));
+                strongbytesMs.SetLength(strongLength);
+
+                byte[] strongBytesBuffer = new byte[strongLength];
+                strongbytesMs.Read(strongBytesBuffer, 0, strongLength);
+                checkSumsMs.Write(strongBytesBuffer,0,strongLength);
             }
-            
+
+            stream.Seek(0, SeekOrigin.Begin);
+            var cryptoProvider = new SHA1CryptoServiceProvider();
+            var fileHash = cryptoProvider.ComputeHash(stream);
+
+            return (checkSumsMs.ToArray(), fileHash);
         }
-        
+
 
         private static byte[] Pad(byte[] array, int start, int end, byte value)
         {

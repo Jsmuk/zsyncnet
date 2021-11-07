@@ -13,11 +13,11 @@ using MiscUtil.IO;
 
 namespace zsyncnet
 {
-    public class BlockSum : INullable
+    public class BlockSum
     {
         protected bool Equals(BlockSum other)
         {
-            return _rsum == other._rsum;
+            return Rsum == other.Rsum;
         }
 
         public override bool Equals(object obj)
@@ -30,45 +30,19 @@ namespace zsyncnet
 
         public override int GetHashCode()
         {
-            return _rsum.GetHashCode();
+            return Rsum.GetHashCode();
         }
 
-        private ushort _rsum;
-        private byte[] _checksum; 
+        public readonly ushort Rsum;
+        public readonly byte[] Checksum;
         public int BlockStart { get; set; }
-        
-        
+
+
         public BlockSum(ushort rsum, byte[] checksum, int start)
         {
-            _rsum = rsum;
-            _checksum = checksum;
+            Rsum = rsum;
+            Checksum = checksum;
             BlockStart = start;
-        }
-
-        public ushort GetRsum()
-        {
-            return _rsum;
-        }
-
-        public byte[] GetChecksum()
-        {
-            return _checksum;
-        }
-
-        public void SetChecksum(byte[] block)
-        {
-            SetChecksum(block,0 ,block.Length);
-        }
-        public void SetChecksum(byte[] block, int offset, int length)
-        {
-            var byteToProcess = new byte[length];
-            Array.Copy(block,offset,byteToProcess,0,length);
-            _checksum = ZsyncUtil.Md4Hash(byteToProcess);
-        }
-
-        public int GetChecksumLength()
-        {
-            return _checksum.Length;
         }
 
         public static List<BlockSum> ReadBlockSums(byte[] input, int blockCount,  int rsumBytes, int checksumBytes )
@@ -77,7 +51,7 @@ namespace zsyncnet
             var blocks = new List<BlockSum>(blockCount);
             for (var i = 0; i < blockCount; i++)
             {
-                // Read rsum, then read checksum 
+                // Read rsum, then read checksum
                 blocks.Add(ReadBlockSum(inputStream,rsumBytes,checksumBytes,i));
             }
 
@@ -87,7 +61,7 @@ namespace zsyncnet
         public static List<BlockSum> GenerateBlocksum(byte[] input, int weakLength, int strongLength, int blockSize)
         {
 
-            
+
             using (var stream = new MemoryStream(input))
             {
                 int capacity = ((int) (input.Length / blockSize) + (input.Length % blockSize > 0 ? 1 : 0)) * (weakLength + strongLength)
@@ -102,25 +76,25 @@ namespace zsyncnet
                 {
                     if (read < blockSize)
                     {
-                        // Pad with 0's 
+                        // Pad with 0's
                         block = Pad(block, read, blockSize, 0);
                     }
-                    
+
                     //weakbytesMs.Clear();
                     weakbytesMs.SetLength(0);
                     weakbytesMs.SetLength(weakLength);
 
                     var weakCheckSum = (ushort) ZsyncUtil.ComputeRsum(block);
-                  
+
                     weakbytesMs.Position = weakbytesMs.Length - weakLength;
-                    
+
 
                     var strongbytesMs = new MemoryStream(ZsyncUtil.Md4Hash(block.ToArray()));
                     strongbytesMs.SetLength(strongLength);
-                    
+
                     byte[] strongBytesBuffer = new byte[strongLength];
                     strongbytesMs.Read(strongBytesBuffer, 0, strongLength);
-                    
+
                     blockSums.Add(new BlockSum(weakCheckSum,strongBytesBuffer,count));
                     count++;
                 }
@@ -128,7 +102,7 @@ namespace zsyncnet
                 return blockSums;
             }
         }
-        
+
         private static byte[] Pad(byte[] array, int start, int end, byte value)
         {
             for (int i = start; i < end; i++)
@@ -141,16 +115,8 @@ namespace zsyncnet
 
         private static BlockSum ReadBlockSum(MemoryStream input, int rsumBytes, int checksumBytes, int start)
         {
-            /**
-             * 1) Read rsum
-             * 2) Read checksum
-             * ?? Flip endianness ?? 
-             */
-
             var rsum = ReadRsum(input, rsumBytes);
             var checksum = ReadChecksum(input, checksumBytes);
-
-            
             return new BlockSum(rsum, checksum, start);
         }
 
@@ -161,7 +127,7 @@ namespace zsyncnet
             //var rsum = 0;
             for (var i = bytes - 1; i >= 0; i--)
             {
-                var next = br.ReadByte();
+                var next = br.ReadByte(); // TODO: does nothing for 1 byte reads, right?
                 if (next == -1)
                 {
                     throw new Exception("Failed to read rsum: Premature end of file");
@@ -200,9 +166,7 @@ namespace zsyncnet
 
         public bool ChecksumsMatch(BlockSum other)
         {
-            return GetRsum() == other.GetRsum() && GetChecksum().SequenceEqual(other.GetChecksum());
+            return Rsum == other.Rsum && Checksum.SequenceEqual(other.Checksum);
         }
-
-        public bool IsNull { get; }
     }
 }

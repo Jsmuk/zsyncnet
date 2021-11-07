@@ -50,7 +50,7 @@ namespace zsyncnet.Internal
             FilePath = path;
 
             _fileUri = fileUri;
-            _blockSize = cf.GetHeader().Blocksize;
+            _blockSize = cf.GetHeader().BlockSize;
             _length = cf.GetHeader().Length;
             _lastBlockSize = (int) (_length % _blockSize == 0 ? _blockSize : _length % _blockSize);
             _sha1 = cf.GetHeader().Sha1;
@@ -58,7 +58,7 @@ namespace zsyncnet.Internal
 
             TempPath = new FileInfo(FilePath.FullName + ".part");
 
-            // Create all directories 
+            // Create all directories
             Directory.CreateDirectory(TempPath.Directory.FullName);
 
             // Open stream
@@ -72,9 +72,9 @@ namespace zsyncnet.Internal
             var fileBuffer = _existingStream.ToByteArray();
             _existingStream.Position = 0;
             _localBlockSums = BlockSum.GenerateBlocksum(fileBuffer,
-                cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().Blocksize);
+                cf.GetHeader().WeakChecksumLength, cf.GetHeader().StrongChecksumLength, cf.GetHeader().BlockSize);
             TotalBytesDownloaded = 0;
-            // Set the last mod time to the time in the control file. 
+            // Set the last mod time to the time in the control file.
 
         }
 

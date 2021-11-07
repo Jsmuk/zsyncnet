@@ -15,10 +15,9 @@ namespace zsyncnet
     {
         private static bool IsAbsoluteUrl(string url)
         {
-            Uri result;
-            return Uri.TryCreate(url, UriKind.Absolute, out result);
+            return Uri.TryCreate(url, UriKind.Absolute, out _);
         }
-        
+
         /// <summary>
         /// Syncs a file
         /// </summary>
@@ -30,7 +29,7 @@ namespace zsyncnet
         public static long Sync(Uri zsyncFile, DirectoryInfo output)
         {
             // Load zsync control file
-            
+
             var cf = new ControlFile(zsyncFile.ToString().GetStreamAsync().Result);
             var path = Path.Combine(output.FullName, cf.GetHeader().Filename.TrimStart());
 
@@ -48,30 +47,15 @@ namespace zsyncnet
 
             if (fileUri.ToString().HeadAsync().Result.StatusCode == HttpStatusCode.NotFound)
             {
-                // File not found 
+                // File not found
                 throw new WebException("File not found");
             }
-            
+
             if (File.Exists(path))
             {
-                // File exists, use the existing file as the seed file 
+                // File exists, use the existing file as the seed file
 
-                OutputFile of = new OutputFile(new FileInfo(path), cf, fileUri);
-
-                of.Patch();
-
-                if (VerifyFile(of.TempPath, cf.GetHeader().Sha1))
-                {
-                    File.Copy(of.TempPath.FullName,of.FilePath.FullName,true);
-                    File.Delete(of.TempPath.FullName);
-                }
-                else
-                {
-                    throw new Exception("File invalid");
-                }
-
-                return of.TotalBytesDownloaded;
-
+                return Sync(cf, new FileInfo(path), fileUri);
             }
             else
             {
@@ -79,19 +63,34 @@ namespace zsyncnet
                 return cf.GetHeader().Length;
 
             }
-            
-            
+        }
+
+        public static long Sync(ControlFile controlFile, FileInfo localFile, Uri remoteFile)
+        {
+            var of = new OutputFile(localFile, controlFile, remoteFile);
+
+            of.Patch();
+
+            if (VerifyFile(of.TempPath, controlFile.GetHeader().Sha1))
+            {
+                File.Copy(of.TempPath.FullName,of.FilePath.FullName,true);
+                File.Delete(of.TempPath.FullName);
+            }
+            else
+            {
+                throw new Exception("File invalid");
+            }
+
+            return of.TotalBytesDownloaded;
         }
 
         private static bool VerifyFile(FileInfo file, string checksum)
         {
-            using (SHA1CryptoServiceProvider crypto = new SHA1CryptoServiceProvider())
-            {
-                var buffer = File.ReadAllBytes(file.FullName);
-                var hash = ZsyncUtil.ByteToHex(crypto.ComputeHash(buffer));
+            using var crypto = new SHA1CryptoServiceProvider();
+            var fileStream = file.OpenRead();
+            var hash = ZsyncUtil.ByteToHex(crypto.ComputeHash(fileStream));
 
-                return hash == checksum;
-            }
+            return hash == checksum;
         }
 
     }

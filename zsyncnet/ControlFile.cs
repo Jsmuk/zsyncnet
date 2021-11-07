@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection.Metadata.Ecma335;
 using zsyncnet.Internal.ControlFile;
 
 namespace zsyncnet
@@ -20,10 +19,10 @@ namespace zsyncnet
         public ControlFile(Stream stream)
         {
             // Read stream in (could be from any source)
-            var returned = SplitFileRead(stream.ToByteArray());
-            
-            _header = new Header(returned.first);
-            _blockSums = BlockSum.ReadBlockSums(returned.last, _header.GetNumberOfBlocks(), _header.WeakChecksumLength,
+            var (first, last) = SplitFileRead(stream.ToByteArray());
+
+            _header = new Header(first);
+            _blockSums = BlockSum.ReadBlockSums(last, _header.GetNumberOfBlocks(), _header.WeakChecksumLength,
                 _header.StrongChecksumLength);
             NLog.LogManager.GetCurrentClassLogger().Info($"Total blocks for {_header.Filename}: {_blockSums.Count}, expected {_header.GetNumberOfBlocks()}");
             if (_header.GetNumberOfBlocks() != _blockSums.Count)
@@ -42,14 +41,14 @@ namespace zsyncnet
             return _blockSums;
         }
 
-        static (byte[] first, byte[] last) SplitFileRead(byte[] file)
+        private static (byte[] first, byte[] last) SplitFileRead(byte[] file)
         {
             var pos = file.Locate(new byte[] {0x0A, 0x0A});
 
             var offset = pos[0];
 
             // Two bytes are ignored, they are the two 0x0A's splitting the file
-            
+
             byte[] first = new byte[offset];
             byte[] last = new byte[file.Length - offset - 2];
 
